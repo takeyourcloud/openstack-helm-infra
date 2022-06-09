@@ -65,6 +65,7 @@ deployment:
   storage_secrets: true
   ceph: true
   rbd_provisioner: false
+  csi_rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: false
   rgw_keystone_user_and_endpoints: false
@@ -173,5 +174,5 @@ for CHART in ceph-mon ceph-osd ceph-client; do
   kubectl exec -n tenant-ceph ${MON_POD} -- ceph -s
 done
 
-helm test tenant-ceph-osd --timeout 900
-helm test tenant-ceph-client --timeout 900
+helm test tenant-ceph-osd --namespace tenant-ceph --timeout 900s
+helm test tenant-ceph-client --namespace tenant-ceph --timeout 900s

@@ -35,6 +35,7 @@ deployment:
   storage_secrets: false
   ceph: false
   rbd_provisioner: false
+  csi_rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: true
   rgw_keystone_user_and_endpoints: false
@@ -45,16 +46,24 @@ conf:
     enabled: true
 storageclass:
   rbd:
-    ceph_configmap_name: tenant-ceph-etc
-    provision_storage_class: false
+    provision_storage_class: true
     metadata:
       name: tenant-rbd
     parameters:
       adminSecretName: pvc-tenant-ceph-conf-combined-storageclass
       adminSecretNamespace: tenant-ceph
       userSecretName: pvc-tenant-ceph-client-key
+  csi_rbd:
+    ceph_configmap_name: tenant-ceph-etc
+    provision_storage_class: true
+    metadata:
+      name: tenant-csi-rbd
+    parameters:
+      adminSecretName: pvc-tenant-ceph-conf-combined-storageclass
+      adminSecretNamespace: tenant-ceph
+      userSecretName: pvc-tenant-ceph-client-key
   cephfs:
-    provision_storage_class: false
+    provision_storage_class: true
     metadata:
       name: cephfs
     parameters:
@@ -74,7 +83,4 @@ helm upgrade --install tenant-ceph-openstack-config ./ceph-provisioners \
 #NOTE: Wait for deploy
 ./tools/deployment/common/wait-for-pods.sh openstack
 
-#NOTE: Validate Deployment info
-helm status tenant-ceph-openstack-config
-
-helm test tenant-ceph-openstack-config --timeout 600
+helm test tenant-ceph-openstack-config --namespace openstack --timeout 600s

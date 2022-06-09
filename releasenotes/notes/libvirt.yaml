@@ -5,4 +5,12 @@ libvirt:
   - 0.1.2 Setup libvirt SSL
   - 0.1.3 Create override for external ceph cinder backend
   - 0.1.4 Set unix socket auth method as none
+  - 0.1.5 Use full image ref for docker official images
+  - 0.1.6 Enhancement to enable probes override from values.yaml
+  - 0.1.7 Add libvirt overrides for Victoria and Wallaby
+  - 0.1.8 Update htk requirements
+  - 0.1.9 Exec libvirt instead of forking from bash
+  - 0.1.10 Enable taint toleration for Openstack services jobs
+  - 0.1.11 Remove unused overrides and update default image
+  - 0.1.12 Add libvirt exporter as a sidecar
 ...

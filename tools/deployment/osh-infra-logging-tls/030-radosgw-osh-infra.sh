@@ -34,6 +34,7 @@ deployment:
   storage_secrets: false
   ceph: true
   rbd_provisioner: false
+  csi_rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: false
   rgw_keystone_user_and_endpoints: false
@@ -60,10 +61,7 @@ helm upgrade --install radosgw-osh-infra ./ceph-rgw \
 #NOTE: Wait for deploy
 ./tools/deployment/common/wait-for-pods.sh osh-infra
 
-#NOTE: Validate Deployment info
-helm status radosgw-osh-infra
-
 # Delete the test pod if it still exists
 kubectl delete pods -l application=ceph,release_group=radosgw-osh-infra,component=rgw-test --namespace=osh-infra --ignore-not-found
 #NOTE: Test Deployment
-helm test radosgw-osh-infra --timeout 900
+helm test radosgw-osh-infra --namespace osh-infra --timeout 900s

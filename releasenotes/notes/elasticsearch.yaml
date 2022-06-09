@@ -17,4 +17,16 @@ elasticsearch:
   - 0.2.5 Enable TLS with Kibana
   - 0.2.6 Enable TLS path between nodes in cluster and TLS path between ceph-rgw
   - 0.2.7 Get connection option from values.yaml
+  - 0.2.8 Use full image ref for docker official images
+  - 0.2.9 Removed repo verification check from helm-test
+  - 0.2.10 Enable TLS path between Prometheus-elasticsearch-exporter and Elasticsearch
+  - 0.2.11 Enable TLS path between Curator and Elasticsearch
+  - 0.2.12 Helm 3 - Fix Job labels
+  - 0.2.13 Update htk requirements
+  - 0.2.14 Fix cronjob rendering
+  - 0.2.15 Fix elasticsearch-data shutdown
+  - 0.2.16 Use python3 for helm tests when possible
+  - 0.2.17 Annotate ES master/data sts with S3 secret hash
+  - 0.2.18 Update default image value to Wallaby
+  - 0.2.19 Migrated CronJob resource to batch/v1 API version
 ...

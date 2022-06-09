@@ -23,7 +23,7 @@ images:
     ceph_bootstrap: 'docker.io/openstackhelm/ceph-daemon:change_770201_ubuntu_bionic-20210113'
     ceph_config_helper: 'docker.io/openstackhelm/ceph-config-helper:change_770201_ubuntu_bionic-20210113'
     dep_check: 'quay.io/airshipit/kubernetes-entrypoint:v1.0.0'
-    image_repo_sync: 'docker.io/docker:17.07.0'
+    image_repo_sync: 'docker.io/library/docker:17.07.0'
   local_registry:
     active: false
     exclude:
@@ -56,9 +56,11 @@ pod:
       container:
         ceph_init_dirs:
           runAsUser: 0
+          allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
         ceph_log_ownership:
           runAsUser: 0
+          allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
         osd_init:
           runAsUser: 0
@@ -69,7 +71,9 @@ pod:
           privileged: true
           readOnlyRootFilesystem: true
         log_runner:
-          runAsUser: 0
+          # run as "ceph" user
+          runAsUser: 64045
+          allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
     bootstrap:
       pod:
@@ -283,6 +287,16 @@ conf:
     #   journal:
     #     type: directory
     #     location: /var/lib/openstack-helm/ceph/osd/journal-one
+
+    # The post-apply job will restart OSDs without disruption by default. Set
+    # this value to "true" to restart all OSDs at once. This will accomplish
+    # OSD restarts more quickly with disruption.
+    disruptive_osd_restart: "false"
+
+    # The post-apply job will try to determine if OSDs need to be restarted and
+    # only restart them if necessary. Set this value to "true" to restart OSDs
+    # unconditionally.
+    unconditional_osd_restart: "false"
 
 # NOTE(portdirect): for heterogeneous clusters the overrides section can be used to define
 # OSD pods that will be deployed upon specifc nodes.

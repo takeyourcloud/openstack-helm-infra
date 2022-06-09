@@ -22,6 +22,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ceph-bootstrap
+  labels:
+{{ tuple $envAll "ceph" "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
   annotations:
     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
@@ -71,11 +73,11 @@ spec:
           emptyDir: {}
         - name: ceph-mon-bin
           configMap:
-            name: ceph-mon-bin
+            name: {{ printf "%s-%s" $envAll.Release.Name "bin" | quote }}
             defaultMode: 0555
         - name: ceph-mon-etc
           configMap:
-            name: ceph-mon-etc
+            name: {{ printf "%s-%s" $envAll.Release.Name "etc" | quote }}
             defaultMode: 0444
         - name: ceph-client-admin-keyring
           secret:

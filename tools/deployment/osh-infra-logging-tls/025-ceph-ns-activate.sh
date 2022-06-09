@@ -30,6 +30,7 @@ deployment:
   storage_secrets: false
   ceph: false
   rbd_provisioner: false
+  csi_rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: true
   rgw_keystone_user_and_endpoints: false
@@ -53,7 +54,7 @@ helm upgrade --install ceph-osh-infra-config ./ceph-provisioners \
 
 # Delete the test pod if it still exists
 kubectl delete pods -l application=ceph,release_group=ceph-osh-infra-config,component=provisioner-test --namespace=osh-infra --ignore-not-found
-helm test ceph-osh-infra-config --timeout 600
+helm test ceph-osh-infra-config --namespace osh-infra --timeout 600s
 
 #NOTE: Validate Deployment info
 kubectl get -n osh-infra jobs

@@ -25,13 +25,13 @@ function create_rgw_placement_target () {
 
 function delete_rgw_placement_target () {
   echo "Deleting rgw placement target $1"
-  radosgw-admin zonegroup placement rm $1
+  radosgw-admin zonegroup placement rm --rgw-zonegroup "$1" --placement-id "$2"
 }
 
 function add_rgw_zone_placement () {
   echo "Adding rgw zone placement for placement target $2 data pool $3"
   radosgw-admin zone placement add \
-    --rgw-zone $1 \
+    --rgw-zone "$1" \
     --placement-id "$2" \
     --data-pool "$3" \
     --index-pool "$4" \
@@ -40,7 +40,7 @@ function add_rgw_zone_placement () {
 
 function rm_rgw_zone_placement () {
   echo "Removing rgw zone placement for placement target $1"
-  radosgw-admin zone placement rm $1
+  radosgw-admin zone placement rm --rgw-zone "$1" --placement-id "$2"
 }
 
 {{- range $i, $placement_target := .Values.conf.rgw_placement_targets }}
@@ -55,10 +55,11 @@ RGW_PLACEMENT_TARGET_EXISTS=$(radosgw-admin zonegroup placement get --placement-
 if [[ -z "$RGW_PLACEMENT_TARGET_EXISTS" ]]; then
   create_rgw_placement_target "$RGW_ZONEGROUP" "$RGW_PLACEMENT_TARGET"
   add_rgw_zone_placement "$RGW_ZONE" "$RGW_PLACEMENT_TARGET" "$RGW_PLACEMENT_TARGET_DATA_POOL" "$RGW_PLACEMENT_TARGET_INDEX_POOL" "$RGW_PLACEMENT_TARGET_DATA_EXTRA_POOL"
+  RGW_PLACEMENT_TARGET_EXISTS=$(radosgw-admin zonegroup placement get --placement-id "$RGW_PLACEMENT_TARGET" 2>/dev/null || true)
 fi
 if [[ -n "$RGW_PLACEMENT_TARGET_EXISTS" ]] &&
    [[ "true" == "$RGW_DELETE_PLACEMENT_TARGET" ]]; then
-  rm_rgw_zone_placement "$RGW_PLACEMENT_TARGET"
-  delete_rgw_placement_target "$RGW_PLACEMENT_TARGET"
+  rm_rgw_zone_placement "$RGW_ZONE" "$RGW_PLACEMENT_TARGET"
+  delete_rgw_placement_target "$RGW_ZONEGROUP" "$RGW_PLACEMENT_TARGET"
 fi
 {{- end }}

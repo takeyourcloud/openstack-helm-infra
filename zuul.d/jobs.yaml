@@ -16,13 +16,24 @@
 - job:
     name: openstack-helm-lint
     run: playbooks/lint.yml
-    nodeset: ubuntu-bionic
+    nodeset: ubuntu-focal
     # NOTE(aostapenko) Required if job is run against another project
     required-projects:
       - openstack/openstack-helm-infra
     irrelevant-files:
       - ^.*\.rst$
       - ^doc/.*$
+      - ^releasenotes/.*$
+
+- job:
+    name: openstack-helm-lint-osh
+    parent: openstack-helm-lint
+    required-projects:
+      - openstack/openstack-helm
+    files:
+      - ^helm-toolkit/.*$
+    vars:
+      lint_osh: true
 
 - job:
     name: publish-openstack-helm-charts
@@ -42,6 +53,44 @@
       - ^.*\.rst$
       - ^doc/.*$
       - ^releasenotes/.*$
+
+- job:
+    name: openstack-helm-infra-deploy
+    parent: openstack-helm-infra-functional
+    timeout: 7200
+    roles:
+      - zuul: zuul/zuul-jobs
+    pre-run: playbooks/osh-infra-upgrade-host.yaml
+    post-run: playbooks/osh-infra-collect-logs.yaml
+    nodeset: openstack-helm-single-node
+    vars:
+      osh_params:
+        openstack_release: train
+        container_distro_name: ubuntu
+        container_distro_version: bionic
+      gate_scripts_relative_path: ../openstack-helm-infra
+      gate_scripts:
+        - ./tools/deployment/common/000-install-packages.sh
+        - ./tools/gate/deploy-k8s.sh
+
+- job:
+    name: openstack-helm-infra-deploy-kubeadm
+    parent: openstack-helm-infra-functional
+    timeout: 7200
+    roles:
+      - zuul: zuul/zuul-jobs
+    pre-run: playbooks/osh-infra-upgrade-host.yaml
+    post-run: playbooks/osh-infra-collect-logs.yaml
+    nodeset: openstack-helm-single-node
+    vars:
+      osh_params:
+        openstack_release: train
+        container_distro_name: ubuntu
+        container_distro_version: bionic
+      gate_scripts_relative_path: ../openstack-helm-infra
+      gate_scripts:
+        - ./tools/deployment/common/000-install-packages.sh
+        - ./tools/gate/deploy-k8s-kubeadm.sh
 
 - job:
     name: openstack-helm-infra-bandit
@@ -121,16 +170,6 @@
     name: openstack-helm-infra-ubuntu
     parent: openstack-helm-infra
     nodeset: openstack-helm-ubuntu
-
-- job:
-    name: openstack-helm-infra-centos
-    parent: openstack-helm-infra
-    nodeset: openstack-helm-centos
-
-- job:
-    name: openstack-helm-infra-fedora
-    parent: openstack-helm-infra
-    nodeset: openstack-helm-fedora
 
 - job:
     name: openstack-helm-infra-aio-logging
@@ -404,41 +443,6 @@
     nodeset: openstack-helm-five-node-ubuntu
 
 - job:
-    name: openstack-helm-infra-five-centos
-    parent: openstack-helm-infra
-    nodeset: openstack-helm-five-node-centos
-
-- job:
-    name: openstack-helm-infra-five-fedora
-    parent: openstack-helm-infra
-    nodeset: openstack-helm-five-node-fedora
-
-- job:
-    name: openstack-helm-infra-kubernetes-keystone-auth
-    parent: openstack-helm-infra
-    nodeset: openstack-helm-single-node
-    required-projects:
-      - openstack/openstack-helm-infra
-      - openstack/openstack-helm
-    vars:
-      osh_params:
-        openstack_release: train
-        container_distro_name: ubuntu
-        container_distro_version: bionic
-      kubernetes_keystone_auth: true
-      gate_fqdn_test: true
-      gate_scripts_relative_path: ../openstack-helm-infra
-      gate_scripts:
-        - ./tools/deployment/keystone-auth/010-setup-client.sh
-        - ./tools/deployment/keystone-auth/020-ingress.sh
-        - ./tools/deployment/keystone-auth/030-nfs-provisioner.sh
-        - ./tools/deployment/keystone-auth/040-rabbitmq.sh
-        - ./tools/deployment/keystone-auth/050-memcached.sh
-        - ./tools/deployment/keystone-auth/060-mariadb.sh
-        - ./tools/deployment/keystone-auth/070-keystone.sh
-        - ./tools/deployment/keystone-auth/080-check.sh
-
-- job:
     name: openstack-helm-infra-elastic-beats
     parent: openstack-helm-infra-functional
     timeout: 7200
@@ -459,74 +463,6 @@
         - ./tools/deployment/elastic-beats/080-elastic-metricbeat.sh
         - ./tools/deployment/elastic-beats/090-elastic-filebeat.sh
         - ./tools/deployment/elastic-beats/100-elastic-packetbeat.sh
-
-- job:
-    name: openstack-helm-infra-armada-deploy
-    parent: openstack-helm-infra-functional
-    nodeset: openstack-helm-five-node-ubuntu
-    timeout: 7200
-    pre-run:
-      - playbooks/osh-infra-upgrade-host.yaml
-      - playbooks/osh-infra-deploy-docker.yaml
-      - playbooks/osh-infra-build.yaml
-      - playbooks/osh-infra-deploy-k8s.yaml
-    post-run:
-      - playbooks/osh-infra-collect-logs.yaml
-      - playbooks/gather-armada-manifests.yaml
-    vars:
-      gate_scripts_relative_path: ../openstack-helm-infra
-      gate_scripts:
-        - ./tools/deployment/armada/010-armada-host-setup.sh
-        - ./tools/deployment/armada/015-armada-build.sh
-        - ./tools/deployment/armada/020-armada-render-manifests.sh
-        - ./tools/deployment/armada/025-armada-validate-manifests.sh
-        - ./tools/deployment/armada/030-armada-apply-manifests.sh
-
-- job:
-    name: openstack-helm-infra-armada-update-uuid
-    parent: openstack-helm-infra-functional
-    nodeset: openstack-helm-five-node-ubuntu
-    timeout: 7200
-    pre-run:
-      - playbooks/osh-infra-upgrade-host.yaml
-      - playbooks/osh-infra-deploy-docker.yaml
-      - playbooks/osh-infra-build.yaml
-      - playbooks/osh-infra-deploy-k8s.yaml
-    post-run:
-      - playbooks/osh-infra-collect-logs.yaml
-      - playbooks/gather-armada-manifests.yaml
-    vars:
-      gate_scripts_relative_path: ../openstack-helm-infra
-      gate_scripts:
-        - ./tools/deployment/armada/010-armada-host-setup.sh
-        - ./tools/deployment/armada/015-armada-build.sh
-        - ./tools/deployment/armada/020-armada-render-manifests.sh
-        - ./tools/deployment/armada/025-armada-validate-manifests.sh
-        - ./tools/deployment/armada/030-armada-apply-manifests.sh
-        - ./tools/deployment/armada/035-armada-update-uuids.sh
-
-- job:
-    name: openstack-helm-infra-armada-update-passwords
-    parent: openstack-helm-infra-functional
-    nodeset: openstack-helm-five-node-ubuntu
-    timeout: 7200
-    pre-run:
-      - playbooks/osh-infra-upgrade-host.yaml
-      - playbooks/osh-infra-deploy-docker.yaml
-      - playbooks/osh-infra-build.yaml
-      - playbooks/osh-infra-deploy-k8s.yaml
-    post-run:
-      - playbooks/osh-infra-collect-logs.yaml
-      - playbooks/gather-armada-manifests.yaml
-    vars:
-      gate_scripts_relative_path: ../openstack-helm-infra
-      gate_scripts:
-        - ./tools/deployment/armada/010-armada-host-setup.sh
-        - ./tools/deployment/armada/015-armada-build.sh
-        - ./tools/deployment/armada/020-armada-render-manifests.sh
-        - ./tools/deployment/armada/025-armada-validate-manifests.sh
-        - ./tools/deployment/armada/030-armada-apply-manifests.sh
-        - ./tools/deployment/armada/040-armada-update-passwords.sh
 
 - job:
     name: openstack-helm-infra-aio-podsecuritypolicy

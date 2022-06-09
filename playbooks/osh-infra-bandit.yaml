@@ -2,13 +2,16 @@
 - hosts: all
   name: openstack-helm-infra-bandit
   tasks:
+    - name: Clear firewall
+      include_role:
+        name: clear-firewall
 
     - name: Install Required Packages and Setup Host
       shell: |
         set -xe;
         ./tools/deployment/common/000-install-packages.sh
         ./tools/deployment/common/005-deploy-k8s.sh
-        sudo -H pip3 install yq bandit
+        sudo -H pip3 install yq bandit==1.7.1 setuptools
       environment:
         zuul_site_mirror_fqdn: "{{ zuul_site_mirror_fqdn }}"
       args:

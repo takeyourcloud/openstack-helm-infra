@@ -12,6 +12,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
+{{- define "libvirtReadinessProbeTemplate" }}
+exec:
+  command:
+    - bash
+    - -c
+    - /usr/bin/virsh list
+{{- end }}
+{{- define "libvirtLivenessProbeTemplate" }}
+exec:
+  command:
+    - bash
+    - -c
+    - /usr/bin/virsh list
+{{- end }}
+
 {{- define "libvirt.daemonset" }}
 {{- $daemonset := index . 0 }}
 {{- $configMapName := index . 1 }}
@@ -54,6 +69,9 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.agent.libvirt.node_selector_key }}: {{ .Values.labels.agent.libvirt.node_selector_value }}
+{{ if $envAll.Values.pod.tolerations.libvirt.enabled }}
+{{ tuple $envAll "libvirt" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+{{ end }}
       hostNetwork: true
       hostPID: true
       hostIPC: true
@@ -134,18 +152,8 @@ spec:
               value: "{{ .Values.conf.ceph.cinder.external_ceph.secret_uuid }}"
             {{ end }}
           {{ end }}
-          readinessProbe:
-            exec:
-              command:
-              - bash
-              - -c
-              - /usr/bin/virsh list
-          livenessProbe:
-            exec:
-              command:
-              - bash
-              - -c
-              - /usr/bin/virsh list
+{{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "readiness" "probeTemplate" (include "libvirtReadinessProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+{{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "liveness" "probeTemplate" (include "libvirtLivenessProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
           command:
             - /tmp/libvirt.sh
           lifecycle:
@@ -221,6 +229,30 @@ spec:
             {{- end }}
             {{- end }}
 {{ if $mounts_libvirt.volumeMounts }}{{ toYaml $mounts_libvirt.volumeMounts | indent 12 }}{{ end }}
+        {{- if .Values.pod.sidecars.libvirt_exporter }}
+        - name: libvirt-exporter
+{{ tuple $envAll "libvirt_exporter" | include "helm-toolkit.snippets.image" | indent 10 }}
+{{ tuple $envAll $envAll.Values.pod.resources.libvirt_exporter | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "libvirt" "container" "libvirt_exporter" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          ports:
+            - name: metrics
+              protocol: TCP
+              containerPort: {{ tuple "libvirt_exporter" "direct" "metrics" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          volumeMounts:
+            - name: run
+              mountPath: /run
+              {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+              mountPropagation: Bidirectional
+              {{- end }}
+        {{- end }}
       volumes:
         {{ dict "enabled" $ssl_enabled "secretName" $envAll.Values.secrets.tls.client "name" "ssl-client" "path" "/etc/pki/libvirt" "certs" (tuple "clientcert.pem" "clientkey.pem" ) | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
         {{ dict "enabled" $ssl_enabled "secretName" $envAll.Values.secrets.tls.server "name" "ssl-server-cert" "path" "/etc/pki/libvirt" "certs" (tuple "servercert.pem" ) | include "helm-toolkit.snippets.tls_volume" | indent 8 }}

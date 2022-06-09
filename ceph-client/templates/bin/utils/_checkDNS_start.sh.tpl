@@ -16,34 +16,50 @@ limitations under the License.
 
 set -xe
 
-function check_mon_dns {
-  DNS_CHECK=$(getent hosts ceph-mon | head -n1)
-  PODS=$(kubectl get pods --namespace=${NAMESPACE} --selector=application=ceph --field-selector=status.phase=Running \
-         --output=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E 'ceph-mon|ceph-osd|ceph-mgr|ceph-mds')
-  ENDPOINT=$(kubectl get endpoints ceph-mon-discovery -n ${NAMESPACE} -o json | awk -F'"' -v port=${MON_PORT} \
-             -v version=v1 -v msgr_version=v2 \
-             -v msgr2_port=${MON_PORT_V2} \
-             '/"ip"/{print "["version":"$4":"port"/"0","msgr_version":"$4":"msgr2_port"/"0"]"}' | paste -sd',')
+{{ include "helm-toolkit.snippets.mon_host_from_k8s_ep" . }}
 
-  if [[ ${PODS} == "" || "${ENDPOINT}" == "" ]]; then
-    echo "Something went wrong, no PODS or ENDPOINTS are available!"
-  elif [[ ${DNS_CHECK} == "" ]]; then
-    for POD in ${PODS}; do
-      kubectl exec -t ${POD} --namespace=${NAMESPACE} -- \
-      sh -c -e "/tmp/utils-checkDNS.sh "${ENDPOINT}""
-    done
+{{- $rgwNameSpaces := "" }}
+{{- $sep := "" }}
+{{- range $_, $ns := .Values.endpoints.ceph_object_store.endpoint_namespaces }}
+  {{- $rgwNameSpaces = printf "%s%s%s" $rgwNameSpaces $sep $ns }}
+  {{- $sep = " " }}
+{{- end }}
+
+rgwNameSpaces={{- printf "\"%s\"" $rgwNameSpaces }}
+
+function check_mon_dns {
+  NS=${1}
+  # RGWs and the rgw namespace could not exist. Let's check this and prevent this script from failing
+  if [[ $(kubectl get ns ${NS} -o json | jq -r '.status.phase') == "Active" ]]; then
+    DNS_CHECK=$(getent hosts ceph-mon | head -n1)
+    PODS=$(kubectl get pods --namespace=${NS} --selector=application=ceph --field-selector=status.phase=Running \
+          --output=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E 'ceph-mon|ceph-osd|ceph-mgr|ceph-mds|ceph-rgw')
+    ENDPOINT=$(mon_host_from_k8s_ep "${NAMESPACE}" ceph-mon-discovery)
+
+    if [[ ${PODS} == "" || "${ENDPOINT}" == "" ]]; then
+      echo "Something went wrong, no PODS or ENDPOINTS are available!"
+    elif [[ ${DNS_CHECK} == "" ]]; then
+      for POD in ${PODS}; do
+        kubectl exec -t ${POD} --namespace=${NS} -- \
+        sh -c -e "/tmp/utils-checkDNS.sh "${ENDPOINT}""
+      done
+    else
+      for POD in ${PODS}; do
+        kubectl exec -t ${POD} --namespace=${NS} -- \
+        sh -c -e "/tmp/utils-checkDNS.sh up"
+      done
+    fi
   else
-    for POD in ${PODS}; do
-      kubectl exec -t ${POD} --namespace=${NAMESPACE} -- \
-      sh -c -e "/tmp/utils-checkDNS.sh up"
-    done
+    echo "The namespace ${NS} is not ready, yet"
   fi
 }
 
 function watch_mon_dns {
   while [ true ]; do
     echo "checking DNS health"
-    check_mon_dns || true
+    for myNS in ${NAMESPACE} ${rgwNameSpaces}; do
+      check_mon_dns ${myNS} || true
+    done
     echo "sleep 300 sec"
     sleep 300
   done

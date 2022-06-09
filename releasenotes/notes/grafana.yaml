@@ -8,4 +8,10 @@ grafana:
   - 0.1.5 Enable TLS between Grafana and Prometheus
   - 0.1.6 Enable TLS for Grafana ingress path
   - 0.1.7 Update Grafana version and Selenium script
+  - 0.1.8 Use full image ref for docker official images
+  - 0.1.9 Add Alertmanager dashboard to Grafana
+  - 0.1.10 Helm 3 - Fix Job labels
+  - 0.1.11 Update htk requirements
+  - 0.1.12 Add iDRAC dashboard to Grafana
+  - 0.1.13 Update prometheus metric name
 ...

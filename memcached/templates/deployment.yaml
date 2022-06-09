@@ -12,11 +12,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
+{{- if (.Values.global).subchart_release_name }}
+{{- $_ := set . "deployment_name" .Chart.Name }}
+{{- else }}
+{{- $_ := set . "deployment_name" .Release.Name }}
+{{- end }}
+
 {{- if .Values.manifests.deployment }}
 {{- $envAll := . }}
 
-{{- $rcControllerName := printf "%s-%s" $envAll.Release.Name "memcached" }}
-{{- $configMapBinName := printf "%s-%s" $envAll.Release.Name "memcached-bin" }}
+{{- $rcControllerName := printf "%s-%s" $envAll.deployment_name "memcached" }}
+{{- $configMapBinName := printf "%s-%s" $envAll.deployment_name "memcached-bin" }}
 
 {{ tuple $envAll "memcached" $rcControllerName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
@@ -50,6 +56,9 @@ spec:
 {{ tuple $envAll "memcached" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
       nodeSelector:
         {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value | quote }}
+{{ if $envAll.Values.pod.tolerations.memcached.enabled }}
+{{ tuple $envAll "memcached" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+{{ end }}
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.memcached.timeout | default "30" }}
       initContainers:
 {{ tuple $envAll "memcached" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
@@ -80,6 +89,29 @@ spec:
               mountPath: /tmp/memcached.sh
               subPath: memcached.sh
               readOnly: true
+{{- if .Values.monitoring.prometheus.enabled }}
+        - name: memcached-exporter
+          image: {{ .Values.images.tags.prometheus_memcached_exporter }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+{{ tuple $envAll $envAll.Values.pod.resources.prometheus_memcached_exporter | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+{{ dict "envAll" $envAll "application" "server" "container" "memcached_exporter" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          command:
+            - /tmp/memcached-exporter.sh
+            - start
+          ports:
+            - name: metrics
+              containerPort: {{ tuple "oslo_cache" "internal" "metrics" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ tuple "oslo_cache" "internal" "metrics" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: memcached-bin
+              mountPath: /tmp/memcached-exporter.sh
+              subPath: memcached-exporter.sh
+              readOnly: true
+{{- end }}
       volumes:
         - name: pod-tmp
           emptyDir: {}

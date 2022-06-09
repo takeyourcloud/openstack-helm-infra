@@ -22,7 +22,6 @@ export PGPASSWORD=$(cat /etc/postgresql/admin_user.conf \
 
 # Note: not using set -e in this script because more elaborate error handling
 # is needed.
-set -x
 
 source /tmp/backup_main.sh
 
@@ -32,6 +31,9 @@ export DB_NAMESPACE=${POSTGRESQL_POD_NAMESPACE}
 export DB_NAME="postgres"
 export LOCAL_DAYS_TO_KEEP=$POSTGRESQL_LOCAL_BACKUP_DAYS_TO_KEEP
 export REMOTE_DAYS_TO_KEEP=$POSTGRESQL_REMOTE_BACKUP_DAYS_TO_KEEP
+export REMOTE_BACKUP_RETRIES=${NUMBER_OF_RETRIES_SEND_BACKUP_TO_REMOTE}
+export MIN_DELAY_SEND_REMOTE=${MIN_DELAY_SEND_BACKUP_TO_REMOTE}
+export MAX_DELAY_SEND_REMOTE=${MAX_DELAY_SEND_BACKUP_TO_REMOTE}
 export ARCHIVE_DIR=${POSTGRESQL_BACKUP_BASE_DIR}/db/${DB_NAMESPACE}/${DB_NAME}/archive
 
 # This function dumps all database files to the $TMP_DIR that is being

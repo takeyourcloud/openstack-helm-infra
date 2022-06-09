@@ -30,6 +30,7 @@ deployment:
   storage_secrets: false
   ceph: false
   rbd_provisioner: false
+  csi_rbd_provisioner: false
   cephfs_provisioner: false
   client_secrets: true
   rgw_keystone_user_and_endpoints: false
@@ -51,7 +52,7 @@ helm upgrade --install ceph-openstack-config ./ceph-provisioners \
 #NOTE: Wait for deploy
 ./tools/deployment/common/wait-for-pods.sh openstack
 
-helm test ceph-openstack-config --timeout 600
+helm test ceph-openstack-config --namespace openstack --timeout 600s
 
 #NOTE: Validate Deployment info
 kubectl get -n openstack jobs

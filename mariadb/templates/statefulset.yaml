@@ -18,11 +18,16 @@ exec:
     - /tmp/readiness.sh
 {{- end }}
 
+{{- if (.Values.global).subchart_release_name }}
+{{- $_ := set . "deployment_name" .Chart.Name }}
+{{- else }}
+{{- $_ := set . "deployment_name" .Release.Name }}
+{{- end }}
 
 {{- if .Values.manifests.statefulset }}
 {{- $envAll := . }}
 
-{{- $serviceAccountName := printf "%s-%s" .Release.Name "mariadb" }}
+{{- $serviceAccountName := printf "%s-%s" .deployment_name "mariadb" }}
 {{ tuple $envAll "mariadb" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -40,7 +45,7 @@ rules:
   - apiGroups:
       - ""
     resourceNames:
-      - {{ printf "%s-%s" .Release.Name "mariadb-state" | quote }}
+      - {{ printf "%s-%s" .deployment_name "mariadb-state" | quote }}
     resources:
       - configmaps
     verbs:
@@ -106,6 +111,9 @@ spec:
 {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "mariadb" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+{{ if $envAll.Values.pod.tolerations.mariadb.enabled }}
+{{ tuple $envAll "mariadb" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+{{ end }}
       nodeSelector:
         {{ .Values.labels.server.node_selector_key }}: {{ .Values.labels.server.node_selector_value }}
       initContainers:
@@ -151,7 +159,7 @@ spec:
             - name: WSREP_PORT
               value: {{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | quote }}
             - name: STATE_CONFIGMAP
-              value: {{ printf "%s-%s" .Release.Name "mariadb-state" | quote }}
+              value: {{ printf "%s-%s" .deployment_name "mariadb-state" | quote }}
             - name: MYSQL_DBADMIN_USERNAME
               value: {{ .Values.endpoints.oslo_db.auth.admin.username }}
             - name: MYSQL_DBADMIN_PASSWORD

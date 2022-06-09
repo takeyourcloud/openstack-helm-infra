@@ -22,4 +22,31 @@ helm-toolkit:
   - 0.2.13 Modify connection args for s3 bucket creation when TLS is enabled
   - 0.2.14 Remove TLS_OPTION argument from s3 bucket creation job
   - 0.2.15 Adding TLS rabbitmq logic
+  - 0.2.16 Add manual mode to the created backup file name
+  - 0.2.17 Update db backup/restore retry for sending to remote
+  - 0.2.18 Make Rabbit-init job more robust
+  - 0.2.19 Revoke all privileges for PUBLIC role in postgres dbs
+  - 0.2.20 Modify the template of rbac_role to make secrets accessible
+  - 0.2.21 Fix issue with db backup error return code being eaten
+  - 0.2.22 Add ability to set labels to add to resources
+  - 0.2.23 Helm 3 - Fix Job labels
+  - 0.2.24 Migrate Ingress resources to networking.k8s.io/v1
+  - 0.2.25 Set Security Context to ks-user job
+  - 0.2.26 Revert Set Security Context to ks-user job
+  - 0.2.27 Correct private key size input for Certificates and remove minor version support
+  - 0.2.28 Set Security context to ks-user job at pod and container level
+  - 0.2.29 Enhance mariadb backup
+  - 0.2.30 Add ability to image pull secrets on pods
+  - 0.2.31 Add log strings for alert generation
+  - 0.2.32 Consolidate mon_endpoints discovery
+  - 0.2.33 Remove set -x
+  - 0.2.34 Modify database backup logic to maintain minimum number of backups
+  - 0.2.35 Database B/R improvements
+  - 0.2.36 Enable taint toleration for Openstack services jobs
+  - 0.2.37 Updated chart naming for subchart compatibility
+  - 0.2.38 Minor change to display archive directory with files in sub-directory
+  - 0.2.39 Removed tillerVersion from Chart to pass helm3 linting
+  - 0.2.40 Revert chart naming for subchart compatibility
+  - 0.2.41 Database B/R - archive name parser added
+  - 0.2.42 Database B/R - fix to make script compliant with a retention policy
 ...

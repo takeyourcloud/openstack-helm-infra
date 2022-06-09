@@ -56,7 +56,8 @@ network:
 deployment:
   storage_secrets: true
   ceph: true
-  rbd_provisioner: true
+  rbd_provisioner: false
+  csi_rbd_provisioner: true
   cephfs_provisioner: false
   client_secrets: false
   rgw_keystone_user_and_endpoints: false
@@ -107,8 +108,10 @@ conf:
           location: ${CEPH_OSD_DB_WAL_DEVICE}
           size: "2GB"
 storageclass:
-  rbd:
+  csi_rbd:
     ceph_configmap_name: ceph-etc
+  rbd:
+    provision_storage_class: false
   cephfs:
     provision_storage_class: false
 ceph_mgr_modules_config:
@@ -142,7 +145,7 @@ done
 
 # Delete the test pod if it still exists
 kubectl delete pods -l application=ceph-osd,release_group=ceph-osd,component=test --namespace=ceph --ignore-not-found
-helm test ceph-osd --timeout 900
+helm test ceph-osd --namespace ceph --timeout 900s
 # Delete the test pod if it still exists
 kubectl delete pods -l application=ceph-client,release_group=ceph-client,component=test --namespace=ceph --ignore-not-found
-helm test ceph-client --timeout 900
+helm test ceph-client --namespace ceph --timeout 900s

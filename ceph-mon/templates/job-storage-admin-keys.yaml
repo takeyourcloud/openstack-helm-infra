@@ -49,6 +49,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ceph-storage-keys-generator
+  labels:
+{{ tuple $envAll "ceph" "storage-keys-generator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
   annotations:
     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 spec:
@@ -116,10 +118,10 @@ spec:
           emptyDir: {}
         - name: ceph-mon-bin
           configMap:
-            name: ceph-mon-bin
+            name: {{ printf "%s-%s" $envAll.Release.Name "bin" | quote }}
             defaultMode: 0555
         - name: ceph-templates
           configMap:
-            name: ceph-templates
+            name: {{ printf "%s-%s" $envAll.Release.Name "templates" | quote }}
             defaultMode: 0444
 {{- end }}

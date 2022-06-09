@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
-{{- if and .Values.manifests.deployment_csi_rbd_provisioner .Values.deployment.rbd_provisioner }}
+{{- if and .Values.manifests.deployment_csi_rbd_provisioner .Values.deployment.csi_rbd_provisioner }}
 {{- $envAll := . }}
 
 {{- $serviceAccountName := printf "%s-%s" .Release.Name "ceph-rbd-csi-nodeplugin" }}
@@ -25,7 +25,10 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "watch", "list"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

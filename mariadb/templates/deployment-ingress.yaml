@@ -12,12 +12,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */}}
 
+{{- if (.Values.global).subchart_release_name }}
+{{- $_ := set . "deployment_name" .Chart.Name }}
+{{- else }}
+{{- $_ := set . "deployment_name" .Release.Name }}
+{{- end }}
+
 {{- if .Values.manifests.deployment_ingress }}
 {{- $envAll := . }}
 
-{{- $ingressClass := printf "%s-%s" .Release.Name "mariadb-ingress" }}
+{{- $ingressClass := printf "%s-%s" .deployment_name "mariadb-ingress" }}
 
-{{- $serviceAccountName := printf "%s-%s" .Release.Name "ingress" }}
+{{- $serviceAccountName := printf "%s-%s" .deployment_name "ingress" }}
 {{ tuple $envAll "ingress" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -36,6 +42,7 @@ rules:
     verbs:
       - list
       - watch
+      - update
   - apiGroups:
       - ""
     resources:
@@ -156,7 +163,7 @@ rules:
   - apiGroups:
       - ""
     resourceNames:
-      - {{ printf "%s-%s" .Release.Name $ingressClass | quote }}
+      - {{ printf "%s-%s" .deployment_name $ingressClass | quote }}
     resources:
       - configmaps
     verbs:
@@ -234,6 +241,9 @@ spec:
 {{ dict "envAll" $envAll "application" "ingress" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       affinity:
 {{ tuple $envAll "mariadb" "ingress" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+{{ if $envAll.Values.pod.tolerations.mariadb.enabled }}
+{{ tuple $envAll "mariadb" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+{{ end }}
       nodeSelector:
         {{ .Values.labels.ingress.node_selector_key }}: {{ .Values.labels.ingress.node_selector_value }}
       terminationGracePeriodSeconds: 60
@@ -264,38 +274,31 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
-              value: {{ .Release.Name | quote }}
+              value: {{ .deployment_name | quote }}
             - name: INGRESS_CLASS
               value: {{ $ingressClass | quote }}
             - name: ERROR_PAGE_SERVICE
               value: {{ tuple "oslo_db" "error_pages" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" | quote }}
           command:
-            - /tmp/mariadb-ingress-controller.sh
-            - start
+            - /usr/bin/dumb-init
+            - /nginx-ingress-controller
+            - --election-id=$(RELEASE_NAME)
+            - --ingress-class=$(INGRESS_CLASS)
+            - --default-backend-service=$(POD_NAMESPACE)/$(ERROR_PAGE_SERVICE)
+            - --configmap=$(POD_NAMESPACE)/mariadb-ingress-conf
+            - --enable-ssl-chain-completion=false
+            - --tcp-services-configmap=$(POD_NAMESPACE)/mariadb-services-tcp
           lifecycle:
             preStop:
               exec:
                 command:
-                  - /tmp/mariadb-ingress-controller.sh
-                  - stop
+                  - kill -TERM 1
           volumeMounts:
-            - name: pod-tmp
-              mountPath: /tmp
-            - name: mariadb-bin
-              mountPath: /tmp/mariadb-ingress-controller.sh
-              subPath: mariadb-ingress-controller.sh
-              readOnly: true
             - name: mariadb-ingress-etc
               mountPath: /etc/nginx/template/nginx.tmpl
               subPath: nginx.tmpl
               readOnly: true
       volumes:
-        - name: pod-tmp
-          emptyDir: {}
-        - name: mariadb-bin
-          configMap:
-            name: mariadb-bin
-            defaultMode: 0555
         - name: mariadb-ingress-etc
           configMap:
             name: mariadb-ingress-etc

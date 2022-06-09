@@ -19,4 +19,20 @@ ceph-client:
   - 0.1.16 Make Ceph pool init job consistent with helm test
   - 0.1.17 Add pool rename support for Ceph pools
   - 0.1.18 Add pool delete support for Ceph pools
+  - 0.1.19 Use full image ref for docker official images
+  - 0.1.20 Export crash dumps when Ceph daemons crash
+  - 0.1.21 Fix Ceph checkDNS script
+  - 0.1.22 Set pg_num_min in all cases
+  - 0.1.23 Helm 3 - Fix Job labels
+  - 0.1.24 Performance optimizations for the ceph-rbd-pool job
+  - 0.1.25 Update htk requirements
+  - 0.1.26 Fix ceph-rbd-pool deletion race
+  - 0.1.27 Update ceph_mon config to ips from fqdn
+  - 0.1.28 Fix ceph.conf update job labels, rendering
+  - 0.1.29 Consolidate mon_host discovery
+  - 0.1.30 Move ceph-mgr deployment to the ceph-mon chart
+  - 0.1.31 Consolidate mon_endpoints discovery
+  - 0.1.32 Simplify test rules for ceph-mgr deployment
+  - 0.1.33 More robust naming of clusterrole-checkdns
+  - 0.1.34 Migrated CronJob resource to batch/v1 API version
 ...

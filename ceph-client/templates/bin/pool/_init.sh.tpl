@@ -18,16 +18,30 @@ set -ex
 export LC_ALL=C
 
 : "${ADMIN_KEYRING:=/etc/ceph/${CLUSTER}.client.admin.keyring}"
+: "${CEPH_CONF:="/etc/ceph/${CLUSTER}.conf"}"
 
-if [[ ! -e /etc/ceph/${CLUSTER}.conf ]]; then
-  echo "ERROR- /etc/ceph/${CLUSTER}.conf must exist; get it from your existing mon"
+{{ include "helm-toolkit.snippets.mon_host_from_k8s_ep" . }}
+
+if [[ ! -e ${CEPH_CONF}.template ]]; then
+  echo "ERROR- ${CEPH_CONF}.template must exist; get it from your existing mon"
   exit 1
+else
+  ENDPOINT=$(mon_host_from_k8s_ep "${NAMESPACE}" ceph-mon-discovery)
+  if [[ "${ENDPOINT}" == "" ]]; then
+    /bin/sh -c -e "cat ${CEPH_CONF}.template | tee ${CEPH_CONF}" || true
+  else
+    /bin/sh -c -e "cat ${CEPH_CONF}.template | sed 's#mon_host.*#mon_host = ${ENDPOINT}#g' | tee ${CEPH_CONF}" || true
+  fi
 fi
 
 if [[ ! -e ${ADMIN_KEYRING} ]]; then
    echo "ERROR- ${ADMIN_KEYRING} must exist; get it from your existing mon"
    exit 1
 fi
+
+function wait_for_pid() {
+  tail --pid=$1 -f /dev/null
+}
 
 function wait_for_pgs () {
   echo "#### Start: Checking pgs ####"
@@ -176,6 +190,21 @@ function unset_cluster_flags () {
   fi
 }
 
+# Helper function to set pool properties only if the target value differs from
+# the current value to optimize performance
+function set_pool_property() {
+  POOL_NAME=$1
+  PROPERTY_NAME=$2
+  CURRENT_PROPERTY_VALUE=$3
+  TARGET_PROPERTY_VALUE=$4
+
+  if [[ "${CURRENT_PROPERTY_VALUE}" != "${TARGET_PROPERTY_VALUE}" ]]; then
+    ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" "${PROPERTY_NAME}" "${TARGET_PROPERTY_VALUE}"
+  fi
+
+  echo "${TARGET_PROPERTY_VALUE}"
+}
+
 function create_pool () {
   POOL_APPLICATION=$1
   POOL_NAME=$2
@@ -194,44 +223,53 @@ function create_pool () {
     ceph --cluster "${CLUSTER}" osd pool application enable "${POOL_NAME}" "${POOL_APPLICATION}"
   fi
 
+  pool_values=$(ceph --cluster "${CLUSTER}" osd pool get "${POOL_NAME}" all -f json)
+
   if [[ $(ceph mgr versions | awk '/version/{print $3}' | cut -d. -f1) -ge 14 ]]; then
     if [[ "${ENABLE_AUTOSCALER}" == "true" ]]; then
-      pool_values=$(ceph --cluster "${CLUSTER}" osd pool get "${POOL_NAME}" all -f json)
-      pg_num=$(jq '.pg_num' <<< "${pool_values}")
-      pg_num_min=$(jq '.pg_num_min' <<< "${pool_values}")
+      pg_num=$(jq -r '.pg_num' <<< "${pool_values}")
+      pgp_num=$(jq -r '.pgp_num' <<< "${pool_values}")
+      pg_num_min=$(jq -r '.pg_num_min' <<< "${pool_values}")
+      pg_autoscale_mode=$(jq -r '.pg_autoscale_mode' <<< "${pool_values}")
       # set pg_num_min to PG_NUM_MIN before enabling autoscaler
-      if [[ ${pg_num_min} -gt ${PG_NUM_MIN} ]] || [[ ${pg_num} -gt ${PG_NUM_MIN} ]]; then
-        ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" pg_num_min ${PG_NUM_MIN}
+      if [[ ${pg_num} -lt ${PG_NUM_MIN} ]]; then
+        pg_autoscale_mode=$(set_pool_property "${POOL_NAME}" pg_autoscale_mode "${pg_autoscale_mode}" "off")
+        pg_num=$(set_pool_property "${POOL_NAME}" pg_num "${pg_num}" "${PG_NUM_MIN}")
+        pgp_num=$(set_pool_property "${POOL_NAME}" pgp_num "${pgp_num}" "${PG_NUM_MIN}")
       fi
-      ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" pg_autoscale_mode on
+      pg_num_min=$(set_pool_property "${POOL_NAME}" pg_num_min "${pg_num_min}" "${PG_NUM_MIN}")
+      pg_autoscale_mode=$(set_pool_property "${POOL_NAME}" pg_autoscale_mode "${pg_autoscale_mode}" "on")
     else
-      ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" pg_autoscale_mode off
+      pg_autoscale_mode=$(set_pool_property "${POOL_NAME}" pg_autoscale_mode "${pg_autoscale_mode}" "off")
     fi
   fi
 #
 # Make sure pool is not protected after creation AND expansion so we can manipulate its settings.
 # Final protection settings are applied once parameters (size, pg) have been adjusted.
 #
-  ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" nosizechange false
-  ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" nopgchange false
-  ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" nodelete false
-#
-  ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" size ${POOL_REPLICATION}
-  ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" crush_rule "${POOL_CRUSH_RULE}"
+  nosizechange=$(jq -r '.nosizechange' <<< "${pool_values}")
+  nopschange=$(jq -r '.nopschange' <<< "${pool_values}")
+  nodelete=$(jq -r '.nodelete' <<< "${pool_values}")
+  size=$(jq -r '.size' <<< "${pool_values}")
+  crush_rule=$(jq -r '.crush_rule' <<< "${pool_values}")
+  nosizechange=$(set_pool_property "${POOL_NAME}" nosizechange "${nosizechange}" "false")
+  nopgchange=$(set_pool_property "${POOL_NAME}" nopgchange "${nopgchange}" "false")
+  nodelete=$(set_pool_property "${POOL_NAME}" nodelete "${nodelete}" "false")
+  size=$(set_pool_property "${POOL_NAME}" size "${size}" "${POOL_REPLICATION}")
+  crush_rule=$(set_pool_property "${POOL_NAME}" crush_rule "${crush_rule}" "${POOL_CRUSH_RULE}")
 # set pg_num to pool
   if [[ ${POOL_PLACEMENT_GROUPS} -gt 0 ]]; then
-    for PG_PARAM in pg_num pgp_num; do
-      CURRENT_PG_VALUE=$(ceph --cluster "${CLUSTER}" osd pool get "${POOL_NAME}" "${PG_PARAM}" | awk "/^${PG_PARAM}:/ { print \$NF }")
-      if [ "${POOL_PLACEMENT_GROUPS}" -gt "${CURRENT_PG_VALUE}" ]; then
-        ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" "${PG_PARAM}" "${POOL_PLACEMENT_GROUPS}"
-      fi
-    done
+    pg_num=$(jq -r ".pg_num" <<< "${pool_values}")
+    pgp_num=$(jq -r ".pgp_num" <<< "${pool_values}")
+    pg_num=$(set_pool_property "${POOL_NAME}" pg_num "${pg_num}" "${POOL_PLACEMENT_GROUPS}")
+    pgp_num=$(set_pool_property "${POOL_NAME}" pgp_num "${pgp_num}" "${POOL_PLACEMENT_GROUPS}")
   fi
 
 #This is to handle cluster expansion case where replication may change from intilization
   if [ ${POOL_REPLICATION} -gt 1 ]; then
+    min_size=$(jq -r '.min_size' <<< "${pool_values}")
     EXPECTED_POOLMINSIZE=$[${POOL_REPLICATION}-1]
-    ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" min_size ${EXPECTED_POOLMINSIZE}
+    min_size=$(set_pool_property "${POOL_NAME}" min_size "${min_size}" "${EXPECTED_POOLMINSIZE}")
   fi
 #
 # Handling of .Values.conf.pool.target.protected:
@@ -248,8 +286,8 @@ function create_pool () {
 # - nodelete     = Do not allow deletion of the pool
 #
   if [ "x${POOL_PROTECTION}" == "xtrue" ] ||  [ "x${POOL_PROTECTION}" == "x1" ]; then
-    ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" nosizechange true
-    ceph --cluster "${CLUSTER}" osd pool set "${POOL_NAME}" nodelete true
+    nosizechange=$(set_pool_property "${POOL_NAME}" nosizechange "${nosizechange}" "true")
+    nodelete=$(set_pool_property "${POOL_NAME}" nodelete "${nodelete}" "true")
   fi
 }
 
@@ -271,7 +309,6 @@ function manage_pool () {
     fi
   fi
   create_pool "${POOL_APPLICATION}" "${POOL_NAME}" "${POOL_REPLICATION}" "${POOL_PLACEMENT_GROUPS}" "${POOL_CRUSH_RULE}" "${POOL_PROTECTION}"
-  POOL_REPLICAS=$(ceph --cluster "${CLUSTER}" osd pool get "${POOL_NAME}" size | awk '{print $2}')
   ceph --cluster "${CLUSTER}" osd pool set-quota "${POOL_NAME}" max_bytes $POOL_QUOTA
 }
 
@@ -323,6 +360,9 @@ if [[ $(ceph mgr versions | awk '/version/{print $3}' | cut -d. -f1) -ge 14 ]] &
   disable_autoscaling
 fi
 
+# Track the manage_pool() PIDs in an array so we can wait for them to finish
+MANAGE_POOL_PIDS=()
+
 {{- range $pool := .Values.conf.pool.spec -}}
 {{- with $pool }}
 pool_name="{{ .name }}"
@@ -336,19 +376,26 @@ fi
 # Set pool_quota to 0 if target_quota is 0
 [[ ${target_quota} -eq 0 ]] && pool_quota=0 || pool_quota="$(convert_to_bytes {{ .pool_quota | default 0 }})"
 {{- if .crush_rule }}
-manage_pool {{ .application }} ${pool_name} {{ .replication }} {{ .percent_total_data }} {{ $targetPGperOSD }} {{ .crush_rule }} $pool_quota {{ $targetProtection }} ${cluster_capacity}
+manage_pool {{ .application }} ${pool_name} {{ .replication }} {{ .percent_total_data }} {{ $targetPGperOSD }} {{ .crush_rule }} $pool_quota {{ $targetProtection }} ${cluster_capacity} &
 {{ else }}
-manage_pool {{ .application }} ${pool_name} {{ .replication }} {{ .percent_total_data }} {{ $targetPGperOSD }} {{ $crushRuleDefault }} $pool_quota {{ $targetProtection }} ${cluster_capacity}
+manage_pool {{ .application }} ${pool_name} {{ .replication }} {{ .percent_total_data }} {{ $targetPGperOSD }} {{ $crushRuleDefault }} $pool_quota {{ $targetProtection }} ${cluster_capacity} &
 {{- end }}
+MANAGE_POOL_PID=$!
+MANAGE_POOL_PIDS+=( $MANAGE_POOL_PID )
 {{- if .rename }}
+# Wait for manage_pool() to finish for this pool before trying to rename the pool
+wait_for_pid $MANAGE_POOL_PID
 # If a rename value exists, the pool exists, and a pool with the rename value doesn't exist, rename the pool
-if [[ -n "$(ceph --cluster ${CLUSTER} osd pool ls | grep ^{{ .name }}$)" ]] &&
-   [[ -z "$(ceph --cluster ${CLUSTER} osd pool ls | grep ^{{ .rename }}$)" ]]; then
+pool_list=$(ceph --cluster ${CLUSTER} osd pool ls)
+if [[ -n $(grep ^{{ .name }}$ <<< "${pool_list}") ]] &&
+   [[ -z $(grep ^{{ .rename }}$ <<< "${pool_list}") ]]; then
   ceph --cluster "${CLUSTER}" osd pool rename "{{ .name }}" "{{ .rename }}"
   pool_name="{{ .rename }}"
 fi
 {{- end }}
 {{- if and .delete .delete_all_pool_data }}
+# Wait for manage_pool() to finish for this pool before trying to delete the pool
+wait_for_pid $MANAGE_POOL_PID
 # If delete is set to true and delete_all_pool_data is also true, delete the pool
 if [[ "true" == "{{ .delete }}" ]] &&
    [[ "true" == "{{ .delete_all_pool_data }}" ]]; then
@@ -360,6 +407,11 @@ fi
 {{- end }}
 {{- end }}
 {{- end }}
+
+# Wait for all manage_pool() instances to finish before proceeding
+for pool_pid in ${MANAGE_POOL_PIDS[@]}; do
+  wait_for_pid $pool_pid
+done
 
 if [[ $(ceph mgr versions | awk '/version/{print $3}' | cut -d. -f1) -ge 14 ]] && [[ "${ENABLE_AUTOSCALER}" == "true" ]]; then
   enable_autoscaling

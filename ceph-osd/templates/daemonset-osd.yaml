@@ -72,7 +72,7 @@ spec:
 {{ tuple $envAll "ceph" "osd" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-{{ dict "envAll" $envAll "podName" "ceph-osd-default" "containerNames" (list "ceph-osd-default" "ceph-init-dirs" "ceph-log-ownership" "osd-init" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+{{ dict "envAll" $envAll "podName" "ceph-osd-default" "containerNames" (list "ceph-osd-default" "log-runner" "ceph-init-dirs" "ceph-log-ownership" "osd-init" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
 {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
     spec:
 {{ dict "envAll" $envAll "application" "osd" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
@@ -130,8 +130,15 @@ spec:
             - name: pod-var-lib-ceph
               mountPath: /var/lib/ceph
               readOnly: false
+            - name: pod-var-lib-ceph-crash
+              mountPath: /var/lib/ceph/crash
+              readOnly: false
             - name: pod-var-lib-ceph-tmp
               mountPath: /var/lib/ceph/tmp
+              readOnly: false
+            - name: pod-var-crash
+              mountPath: /var/crash
+              mountPropagation: HostToContainer
               readOnly: false
         - name: ceph-log-ownership
 {{ tuple $envAll "ceph_osd" | include "helm-toolkit.snippets.image" | indent 10 }}
@@ -233,6 +240,10 @@ spec:
               mountPath: /tmp/osd-common-ceph-volume.sh
               subPath: osd-common-ceph-volume.sh
               readOnly: true
+            - name: ceph-osd-bin
+              mountPath: /tmp/utils-resolveLocations.sh
+              subPath: utils-resolveLocations.sh
+              readOnly: true
             - name: ceph-osd-etc
               mountPath: /etc/ceph/ceph.conf.template
               subPath: ceph.conf
@@ -250,6 +261,9 @@ spec:
               readOnly: false
             - name: pod-var-lib-ceph
               mountPath: /var/lib/ceph
+              readOnly: false
+            - name: pod-var-lib-ceph-crash
+              mountPath: /var/lib/ceph/crash
               readOnly: false
             - name: pod-var-lib-ceph-tmp
               mountPath: /var/lib/ceph/tmp
@@ -271,6 +285,10 @@ spec:
               readOnly: false
             - name: pod-var-log
               mountPath: /var/log/ceph
+              readOnly: false
+            - name: pod-var-crash
+              mountPath: /var/crash
+              mountPropagation: HostToContainer
               readOnly: false
       containers:
         - name: log-runner
@@ -390,6 +408,10 @@ spec:
               subPath: osd-common-ceph-volume.sh
               readOnly: true
             - name: ceph-osd-bin
+              mountPath: /tmp/utils-resolveLocations.sh
+              subPath: utils-resolveLocations.sh
+              readOnly: true
+            - name: ceph-osd-bin
               mountPath: /tmp/utils-defragOSDs.sh
               subPath: utils-defragOSDs.sh
               readOnly: true
@@ -411,6 +433,9 @@ spec:
             - name: pod-var-lib-ceph
               mountPath: /var/lib/ceph
               readOnly: false
+            - name: pod-var-lib-ceph-crash
+              mountPath: /var/lib/ceph/crash
+              readOnly: false
             - name: pod-var-lib-ceph-tmp
               mountPath: /var/lib/ceph/tmp
               readOnly: false
@@ -431,6 +456,10 @@ spec:
               readOnly: false
             - name: pod-var-log
               mountPath: /var/log/ceph
+              readOnly: false
+            - name: pod-var-crash
+              mountPath: /var/crash
+              mountPropagation: HostToContainer
               readOnly: false
       volumes:
         - name: pod-tmp
@@ -455,9 +484,17 @@ spec:
           emptyDir: {}
         - name: pod-var-lib-ceph
           emptyDir: {}
+        - name: pod-var-lib-ceph-crash
+          hostPath:
+            path: /var/lib/openstack-helm/ceph/crash
+            type: DirectoryOrCreate
         - name: pod-var-lib-ceph-tmp
           hostPath:
             path: /var/lib/openstack-helm/ceph/var-tmp
+            type: DirectoryOrCreate
+        - name: pod-var-crash
+          hostPath:
+            path: /var/crash
             type: DirectoryOrCreate
         - name: pod-var-log
           emptyDir: {}

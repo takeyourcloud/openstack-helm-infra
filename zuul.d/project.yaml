@@ -20,15 +20,13 @@
     check:
       jobs:
         - openstack-helm-lint
+        - openstack-helm-lint-osh
         - openstack-helm-infra-bandit
+        - openstack-helm-infra-deploy
         - openstack-helm-infra-aio-logging
         - openstack-helm-infra-aio-monitoring
         - openstack-helm-infra-openstack-support
         - openstack-helm-infra-openstack-support-ssl
-        # NOTE(srwilkers): Disabling this job until issues with the kubeadm-aio
-        # based deployments are addressed
-        # - openstack-helm-infra-kubernetes-keystone-auth:
-        #     voting: false
         - openstack-helm-infra-metacontroller
         # NOTE(gagehugo): Disabling this job until it's fixed
         # - openstack-helm-infra-aio-podsecuritypolicy:
@@ -36,6 +34,7 @@
     gate:
       jobs:
         - openstack-helm-lint
+        - openstack-helm-lint-osh
         - openstack-helm-infra-aio-logging
         - openstack-helm-infra-aio-monitoring
         - openstack-helm-infra-openstack-support
@@ -43,29 +42,17 @@
     post:
       jobs:
         - publish-openstack-helm-charts
-    # NOTE(srwilkers): Disabling all periodic and experimental jobs until
-    # issues with the kubeadm-aio based deployments are addressed
     periodic:
       jobs:
         - publish-openstack-helm-charts
         - openstack-helm-infra-validate-minikube-aio
         # - openstack-helm-infra-tenant-ceph
         # - openstack-helm-infra-five-ubuntu
-        # - openstack-helm-infra-armada-deploy
-        # - openstack-helm-infra-armada-update-uuid
-        # - openstack-helm-infra-armada-update-passwords
     experimental:
       jobs:
-        # NOTE(srwilkers): Disable fedora experimental jobs until issues resolved
-        # - openstack-helm-infra-five-fedora
-        # NOTE(srwilkers): Disable centos experimental jobs until issues resolved
-        # - openstack-helm-infra-five-centos
         # - openstack-helm-infra-five-ubuntu
         - openstack-helm-infra-elastic-beats
         # - openstack-helm-infra-tenant-ceph
-        # - openstack-helm-infra-armada-deploy
-        # - openstack-helm-infra-armada-update-uuid
-        # - openstack-helm-infra-armada-update-passwords
         - openstack-helm-infra-federated-monitoring
         - openstack-helm-infra-local-storage
         - openstack-helm-infra-aio-network-policy
@@ -75,4 +62,5 @@
         - openstack-helm-infra-metacontroller
         - openstack-helm-infra-aio-monitoring-tls
         - openstack-helm-infra-aio-logging-tls
+        - openstack-helm-infra-deploy-kubeadm
 ...

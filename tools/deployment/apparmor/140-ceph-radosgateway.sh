@@ -54,7 +54,6 @@ helm upgrade --install radosgw-openstack ${OSH_INFRA_PATH}/ceph-rgw \
 ./tools/deployment/common/wait-for-pods.sh openstack
 
 #NOTE: Validate Deployment info
-helm status radosgw-openstack
 export OS_CLOUD=openstack_helm
 sleep 60 #NOTE(portdirect): Wait for ingress controller to update rules and restart Nginx
 
@@ -63,4 +62,4 @@ openstack endpoint list
 
 # Delete the test pod if it still exists
 kubectl delete pods -l application=ceph,release_group=radosgw-openstack,component=rgw-test --namespace=openstack --ignore-not-found
-helm test radosgw-openstack --timeout 900
+helm test radosgw-openstack --namespace openstack --timeout 900s

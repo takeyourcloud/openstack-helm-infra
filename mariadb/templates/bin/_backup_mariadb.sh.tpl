@@ -13,7 +13,6 @@ SCOPE=${1:-"all"}
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-set -x
 
 source /tmp/backup_main.sh
 
@@ -24,6 +23,9 @@ export DB_NAMESPACE=${MARIADB_POD_NAMESPACE}
 export DB_NAME="mariadb"
 export LOCAL_DAYS_TO_KEEP=${MARIADB_LOCAL_BACKUP_DAYS_TO_KEEP}
 export REMOTE_DAYS_TO_KEEP=${MARIADB_REMOTE_BACKUP_DAYS_TO_KEEP}
+export REMOTE_BACKUP_RETRIES=${NUMBER_OF_RETRIES_SEND_BACKUP_TO_REMOTE}
+export MIN_DELAY_SEND_REMOTE=${MIN_DELAY_SEND_BACKUP_TO_REMOTE}
+export MAX_DELAY_SEND_REMOTE=${MAX_DELAY_SEND_BACKUP_TO_REMOTE}
 export ARCHIVE_DIR=${MARIADB_BACKUP_BASE_DIR}/db/${DB_NAMESPACE}/${DB_NAME}/archive
 
 # Dump all the database files to existing $TMP_DIR and save logs to $LOG_FILE
@@ -42,9 +44,9 @@ dump_databases_to_directory() {
   if [[ "${SCOPE}" == "all" ]]; then
     MYSQL_DBNAMES=( $($MYSQL --silent --skip-column-names -e \
        "show databases;" | \
-       egrep -vi 'information_schema|performance_schema|mysql') )
+       grep -ivE 'information_schema|performance_schema|mysql|sys') )
   else
-    if [[ "${SCOPE}" != "information_schema" && "${SCOPE}" != "performance_schema" && "${SCOPE}" != "mysql" ]]; then
+    if [[ "${SCOPE}" != "information_schema" && "${SCOPE}" != "performance_schema" && "${SCOPE}" != "mysql" && "${SCOPE}" != "sys" ]]; then
       MYSQL_DBNAMES=( ${SCOPE} )
     else
       log ERROR "It is not allowed to backup database ${SCOPE}."

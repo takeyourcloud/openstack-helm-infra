@@ -15,20 +15,28 @@
 
 - hosts: all
   roles:
-    - name: build-helm-packages
-      work_dir: "{{ zuul.projects['opendev.org/openstack/openstack-helm-infra'].src_dir }}"
-    - name: build-helm-packages
-      work_dir: "{{ zuul.projects['opendev.org/openstack/openstack-helm'].src_dir }}"
-      when: "zuul.project.name == 'openstack/openstack-helm'"
-    - ensure-chart-testing
+    - name: ensure-helm
+      helm_version: "3.6.3"
+    - name: ensure-chart-testing
+      chart_testing_version: "3.4.0"
     - name: chart-testing
       chart_testing_options: "--chart-dirs=. --validate-maintainers=false"
       zuul_work_dir: "{{ work_dir }}"
   vars:
     work_dir: "{{ zuul.project.src_dir }}/{{ zuul_osh_infra_relative_path | default('') }}"
 
-- hosts: all[0]
   tasks:
+    - name: make all
+      make:
+        chdir: "{{ zuul.project.src_dir }}"
+        target: all
+
+    - name: make all osh
+      make:
+        chdir: "{{ zuul.project.src_dir }}/{{ zuul_osh_relative_path | default('../openstack-helm/') }}"
+        target: all
+      when: lint_osh is defined
+
     - name: Prevent trailing whitespaces
       shell: find . \! \( -path "*/\.*" -o -path "*/doc/build/*" -o -name "*.tgz" -o -name "*.png" \) -type f -exec egrep -l " +$" {} \;
       register: _found_whitespaces
@@ -64,4 +72,10 @@
       args:
         chdir: "{{ ansible_user_dir }}/src/{{ zuul.project.canonical_name }}"
       when: yamllintconf.stat.exists == True
+
+    - name: Execute yamllint check for osh values* yaml files
+      command: tox -e lint
+      args:
+        chdir: "{{ zuul.project.src_dir }}/{{ zuul_osh_relative_path | default('../openstack-helm/') }}"
+      when: yamllintconf.stat.exists == True and lint_osh is defined
 ...

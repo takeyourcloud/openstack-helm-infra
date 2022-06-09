@@ -28,12 +28,12 @@ images:
     ceph_config_helper: 'docker.io/openstackhelm/ceph-config-helper:change_770201_ubuntu_bionic-20210113'
     ceph_rgw: 'docker.io/openstackhelm/ceph-daemon:change_770201_ubuntu_bionic-20210113'
     dep_check: 'quay.io/airshipit/kubernetes-entrypoint:v1.0.0'
-    image_repo_sync: 'docker.io/docker:17.07.0'
+    image_repo_sync: 'docker.io/library/docker:17.07.0'
     rgw_s3_admin: 'docker.io/openstackhelm/ceph-config-helper:change_770201_ubuntu_bionic-20210113'
     rgw_placement_targets: 'docker.io/openstackhelm/ceph-config-helper:change_770201_ubuntu_bionic-20210113'
-    ks_endpoints: 'docker.io/openstackhelm/heat:newton-ubuntu_xenial'
-    ks_service: 'docker.io/openstackhelm/heat:newton-ubuntu_xenial'
-    ks_user: 'docker.io/openstackhelm/heat:newton-ubuntu_xenial'
+    ks_endpoints: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
+    ks_service: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
+    ks_user: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
   local_registry:
     active: false
     exclude:
@@ -233,6 +233,9 @@ pod:
         key: node.kubernetes.io/unreachable
         operator: Exists
         tolerationSeconds: 60
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
 
 network_policy:
   rgw:
@@ -430,6 +433,7 @@ conf:
       rgw_keystone_implicit_tenants: true
       rgw_keystone_make_new_tenants: true
       rgw_s3_auth_use_keystone: true
+      rgw_s3_auth_order: "local, external, sts"
       rgw_swift_account_in_url: true
       rgw_swift_url: null
   rgw_s3:

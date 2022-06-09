@@ -15,6 +15,10 @@ limitations under the License.
 
 set -ex
 
+if [[ $(which python3) ]]; then
+    alias python=python3
+fi
+
 function create_test_index () {
   index_result=$(curl ${CACERT_OPTION} -K- <<< "--user ${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
   -XPUT "${ELASTICSEARCH_ENDPOINT}/test_index?pretty" -H 'Content-Type: application/json' -d'
@@ -36,27 +40,6 @@ function create_test_index () {
   fi
 }
 
-{{ if .Values.conf.elasticsearch.snapshots.enabled }}
-function check_snapshot_repositories_verified () {
-  repositories=$(curl ${CACERT_OPTION} -K- <<< "--user ${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
-                  "${ELASTICSEARCH_ENDPOINT}/_snapshot" | jq -r "keys | @sh" )
-
-  repositories=$(echo $repositories | sed "s/'//g") # Strip single quotes from jq output
-
-  for repository in $repositories; do
-    error=$(curl ${CACERT_OPTION} -K- <<< "--user ${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
-            -XPOST "${ELASTICSEARCH_ENDPOINT}/_snapshot/${repository}/_verify" | jq -r '.error')
-
-    if [ $error == "null" ]; then
-      echo "PASS: $repository is verified."
-    else
-      echo "FAIL: Error for $repository: $(echo $error | jq -r)"
-      exit 1;
-    fi
-  done
-}
-{{ end }}
-
 function remove_test_index () {
   echo "Deleting index created for service testing"
   curl ${CACERT_OPTION} -K- <<< "--user ${ELASTICSEARCH_USERNAME}:${ELASTICSEARCH_PASSWORD}" \
@@ -66,6 +49,3 @@ function remove_test_index () {
 remove_test_index || true
 create_test_index
 remove_test_index
-{{ if .Values.conf.elasticsearch.snapshots.enabled }}
-check_snapshot_repositories_verified
-{{ end }}

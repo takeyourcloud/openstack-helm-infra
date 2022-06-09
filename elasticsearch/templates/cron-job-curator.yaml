@@ -20,7 +20,7 @@ limitations under the License.
 {{- $serviceAccountName := "elastic-curator" }}
 {{ tuple $envAll "curator" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: elastic-curator
@@ -38,12 +38,12 @@ spec:
       labels:
 {{ tuple $envAll "elasticsearch" "curator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
-{{ dict "envAll" $envAll "application" "curator" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       template:
         metadata:
           labels:
 {{ tuple $envAll "elasticsearch" "curator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
         spec:
+{{ dict "envAll" $envAll "application" "curator" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
           nodeSelector:
             {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value | quote }}
           serviceAccountName: {{ $serviceAccountName }}
@@ -80,6 +80,7 @@ spec:
                   mountPath: /etc/config/action_file.yml
                   subPath: action_file.yml
                   readOnly: true
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.elasticsearch.elasticsearch.internal "path" "/etc/elasticsearch/certs" "certs" tuple "ca.crt" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
           volumes:
             - name: pod-tmp
               emptyDir: {}
@@ -93,4 +94,5 @@ spec:
               secret:
                 secretName: elastic-curator-etc
                 defaultMode: 0444
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.elasticsearch.elasticsearch.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
 {{- end }}
